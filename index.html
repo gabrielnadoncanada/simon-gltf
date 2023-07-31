@@ -103,7 +103,7 @@
             lineGeometry.setFromPoints([new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0)]);
             line = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({color: 0xE91E63}));
             const bgLine = line.clone();
-            bgLine.material = new THREE.LineBasicMaterial({color: 0xE91E63, transparent: true, opacity: 0.25, depthFunc: THREE.GreaterDepth});
+            bgLine.material = new THREE.LineBasicMaterial({color: 0xE91E63, transparent: true, opacity: 1, linewidth: 1,depthFunc: THREE.GreaterDepth});
             bgLine.renderOrder = 3;
             lineGroup = new THREE.Group();
             lineGroup.add(line, bgLine);
@@ -115,56 +115,56 @@
         function loadModels() {
             const gltfLoader = new GLTFLoader();
             gltfLoader.load(
-                "Simon.gltf",
-                (gltf) => {
-                    group1 = gltf.scene.children[0];
-                    group2 = gltf.scene.children[1];
-                    mesh1 = group1.children[0];
-                    mesh2 = group2.children[0];
-                    mesh1.geometry.computeBoundsTree();
-                    mesh2.geometry.computeBoundsTree();
-                    scene.add(group1, group2);
+                    "Simon.gltf",
+                    (gltf) => {
+                        group1 = gltf.scene.children[0];
+                        group2 = gltf.scene.children[1];
+                        mesh1 = group1.children[0];
+                        mesh2 = group2.children[0];
+                        mesh1.geometry.computeBoundsTree();
+                        mesh2.geometry.computeBoundsTree();
+                        scene.add(group1, group2);
 
-                    if (gltf.animations && gltf.animations.length) {
-                        mixer = new THREE.AnimationMixer(scene);
+                        if (gltf.animations && gltf.animations.length) {
+                            mixer = new THREE.AnimationMixer(scene);
 
-                        const animationFolder = gui.addFolder('Animation');
+                            const animationFolder = gui.addFolder('Animation');
 
 
-                        actions = gltf.animations.map((animation, i) => {
-                            let action = mixer.clipAction(animation);
-                            action.setLoop(THREE.LoopOnce);
+                            actions = gltf.animations.map((animation, i) => {
+                                let action = mixer.clipAction(animation);
+                                action.setLoop(THREE.LoopOnce);
 
-                            // Initialize the slider value for this animation as 0%
-                            params['animation' + i] = 0;
+                                // Initialize the slider value for this animation as 0%
+                                params['animation' + i] = 0;
 
-                            // Add a slider for this animation to the GUI
-                            animationFolder.add(params, 'animation' + i, 0, 100).name('Animation ' + i).onChange(function (value) {
-                                action.time = action.getClip().duration * value / 100;
-                                action.play();  // Play the animation to make the frame change take effect
-                                action.paused = true;  // Pause the animation at the current frame
+                                // Add a slider for this animation to the GUI
+                                animationFolder.add(params, 'animation' + i, 0, 100).name('Animation ' + i).onChange(function (value) {
+                                    action.time = action.getClip().duration * value / 100;
+                                    action.play();  // Play the animation to make the frame change take effect
+                                    action.paused = true;  // Pause the animation at the current frame
+                                });
+
+                                return action;
                             });
 
-                            return action;
-                        });
+                            animationFolder.open();
+                        }
 
-                        animationFolder.open();
+                        const boundingBox = new THREE.Box3().setFromObject(group1);
+                        const center = boundingBox.getCenter(new THREE.Vector3());
+
+                        orbitControls.target.copy(center);
+                        orbitControls.update();
+
+                        render();
+                    },
+                    (xhr) => {
+                        console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+                    },
+                    (error) => {
+                        console.log("An error happened");
                     }
-
-                    const boundingBox = new THREE.Box3().setFromObject(group1);
-                    const center = boundingBox.getCenter(new THREE.Vector3());
-
-                    orbitControls.target.copy(center);
-                    orbitControls.update();
-
-                    render();
-                },
-                (xhr) => {
-                    console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
-                },
-                (error) => {
-                    console.log("An error happened");
-                }
             );
         }
 
@@ -218,9 +218,9 @@
 
 
             const matrix2to1 = new THREE.Matrix4()
-                .copy(mesh1.matrixWorld)
-                .invert()
-                .multiply(mesh2.matrixWorld);
+                    .copy(mesh1.matrixWorld)
+                    .invert()
+                    .multiply(mesh2.matrixWorld);
 
             const edge = new THREE.Line3();
             const results = [];
@@ -233,12 +233,12 @@
 
                         const {start, end} = edge;
                         results.push(
-                            start.x,
-                            start.y,
-                            start.z,
-                            end.x,
-                            end.y,
-                            end.z
+                                start.x,
+                                start.y,
+                                start.z,
+                                end.x,
+                                end.y,
+                                end.z
                         );
 
                     }
