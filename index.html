@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Three.js with BVH</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+     <style>
+            body {
+                overflow: hidden;
+                margin: 0;
+            }
+        </style>
+</head>
+<body>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://threejs.org/build/three.module.js",
+                "three/": "https://cdn.skypack.dev/three@0.146.0/",
+                "three/addons/": "https://threejs.org/examples/jsm/",
+                "dat.gui": "https://cdn.skypack.dev/dat.gui",
+                "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.6.0/build/index.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
+        import {computeBoundsTree, disposeBoundsTree, acceleratedRaycast} from 'three-mesh-bvh';
+        import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+        import Stats from "three/examples/jsm/libs/stats.module";
+        import * as dat from 'three/examples/jsm/libs/lil-gui.module.min.js';
+
+        THREE.Mesh.prototype.raycast = acceleratedRaycast;
+        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+        THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+
+        let params = {
+            displayMeshes: true,
+            displaySeparator: false,
+        };
+
+        let scene, camera, renderer, orbitControls, lineGroup;
+        let group1, group2, mesh1, mesh2, line;
+        let lastTime = window.performance.now();
+        let stats;
+        let mixer;
+        const gui = new dat.GUI();
+        let actions = [];
+        let clock = new THREE.Clock();
+
+        let separator;
+
+
+        init();
+
+        function init() {
+            setupRenderer();
+            setupSeparator();
+            setupScene();
+            loadModels();
+            setupCameraAndControls();
+            setupStats();
+            setupGUI();
+            handleWindowResize();
+        }
+
+        function setupSeparator() {
+            const geometry = new THREE.PlaneGeometry(1, 1);
+            const material = new THREE.MeshBasicMaterial({color: 0x000000, side: THREE.DoubleSide});
+            separator = new THREE.Mesh(geometry, material);
+
+            // Set initial rotation to 0 so the separator is flat
+            separator.rotation.x = 0;
+            separator.rotation.y = 0;
+            separator.rotation.z = 0;
+            separator.position.y = 0;
+            separator.position.x = 0;
+
+
+        }
+
+        function setupRenderer() {
+            const bgColor = 0xFFFFFF;
+
+            renderer = new THREE.WebGLRenderer({antialias: true});
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(bgColor, 1);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            document.body.appendChild(renderer.domElement);
+        }
+
+        function setupScene() {
+            const light = new THREE.DirectionalLight(0xffffff, 5);
+            const lineGeometry = new THREE.BufferGeometry();
+            scene = new THREE.Scene();
+            light.position.set(1, 1, 1);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+            lineGeometry.setFromPoints([new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0)]);
+            line = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({color: 0xE91E63}));
+            const bgLine = line.clone();
+            bgLine.material = new THREE.LineBasicMaterial({color: 0xE91E63, transparent: true, opacity: 0.25, depthFunc: THREE.GreaterDepth});
+            bgLine.renderOrder = 3;
+            lineGroup = new THREE.Group();
+            lineGroup.add(line, bgLine);
+            scene.add(lineGroup);
+            scene.add(separator);
+
+        }
+
+        function loadModels() {
+            const gltfLoader = new GLTFLoader();
+            gltfLoader.load(
+                "Simon.gltf",
+                (gltf) => {
+                    group1 = gltf.scene.children[0];
+                    group2 = gltf.scene.children[1];
+                    mesh1 = group1.children[0];
+                    mesh2 = group2.children[0];
+                    mesh1.geometry.computeBoundsTree();
+                    mesh2.geometry.computeBoundsTree();
+                    scene.add(group1, group2);
+
+                    if (gltf.animations && gltf.animations.length) {
+                        mixer = new THREE.AnimationMixer(scene);
+
+                        const animationFolder = gui.addFolder('Animation');
+
+
+                        actions = gltf.animations.map((animation, i) => {
+                            let action = mixer.clipAction(animation);
+                            action.setLoop(THREE.LoopOnce);
+
+                            // Initialize the slider value for this animation as 0%
+                            params['animation' + i] = 0;
+
+                            // Add a slider for this animation to the GUI
+                            animationFolder.add(params, 'animation' + i, 0, 100).name('Animation ' + i).onChange(function (value) {
+                                action.time = action.getClip().duration * value / 100;
+                                action.play();  // Play the animation to make the frame change take effect
+                                action.paused = true;  // Pause the animation at the current frame
+                            });
+
+                            return action;
+                        });
+
+                        animationFolder.open();
+                    }
+
+                    const boundingBox = new THREE.Box3().setFromObject(group1);
+                    const center = boundingBox.getCenter(new THREE.Vector3());
+
+                    orbitControls.target.copy(center);
+                    orbitControls.update();
+
+                    render();
+                },
+                (xhr) => {
+                    console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+                },
+                (error) => {
+                    console.log("An error happened");
+                }
+            );
+        }
+
+        function setupCameraAndControls() {
+            camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 50);
+            camera.position.set(0, 0, 2);
+            camera.far = 100;
+            camera.updateProjectionMatrix();
+            orbitControls = new OrbitControls(camera, renderer.domElement);
+        }
+
+        function setupStats() {
+            stats = new Stats();
+            document.body.appendChild(stats.dom);
+        }
+
+        function setupGUI() {
+            gui.add(params, 'displayMeshes');
+            gui.add(params, 'displaySeparator');
+            const separatorFolder = gui.addFolder('Separator');
+            separatorFolder.add(separator.position, 'y', -10, 10, 0.01);
+            separatorFolder.add(separator.rotation, 'x', -Math.PI, Math.PI, 0.01);
+            separatorFolder.add(separator.rotation, 'y', -Math.PI, Math.PI, 0.01);
+            separatorFolder.add(separator.rotation, 'z', -Math.PI, Math.PI, 0.01);
+            separatorFolder.open();
+
+            gui.open();
+        }
+
+        function handleWindowResize() {
+            window.addEventListener('resize', function () {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }, false);
+        }
+
+        function render() {
+
+            requestAnimationFrame(render);
+
+            const delta = window.performance.now() - lastTime;
+            lastTime = window.performance.now();
+
+            scene.updateMatrixWorld(true);
+
+            if (mixer) {
+                mixer.update(clock.getDelta());
+            }
+
+
+
+            const matrix2to1 = new THREE.Matrix4()
+                .copy(mesh1.matrixWorld)
+                .invert()
+                .multiply(mesh2.matrixWorld);
+
+            const edge = new THREE.Line3();
+            const results = [];
+
+            mesh1.geometry.boundsTree.bvhcast(mesh2.geometry.boundsTree, matrix2to1, {
+
+                intersectsTriangles(triangle1, triangle2) {
+
+                    if (triangle1.intersectsTriangle(triangle2, edge)) {
+
+                        const {start, end} = edge;
+                        results.push(
+                            start.x,
+                            start.y,
+                            start.z,
+                            end.x,
+                            end.y,
+                            end.z
+                        );
+
+                    }
+
+                }
+
+            });
+
+            if (results.length) {
+
+                const geometry = line.geometry;
+                const posArray = geometry.attributes.position.array;
+                if (posArray.length < results.length) {
+
+                    geometry.dispose();
+                    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(results), 3, false));
+
+                } else {
+
+                    posArray.set(results);
+
+                }
+
+                geometry.setDrawRange(0, results.length / 3);
+                geometry.attributes.position.needsUpdate = true;
+                lineGroup.position.copy(group1.position);
+                lineGroup.rotation.copy(group1.rotation);
+                lineGroup.scale.copy(group1.scale);
+                lineGroup.visible = true;
+
+            } else {
+                lineGroup.visible = false;
+            }
+            group1.visible = params.displayMeshes;
+            group2.visible = params.displayMeshes;
+            separator.visible = params.displaySeparator;
+            renderer.render(scene, camera);
+
+            stats.begin();
+            stats.end();
+        }
+
+    </script>
+</body>
+</html>
