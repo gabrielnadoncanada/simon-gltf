@@ -68,10 +68,10 @@
 
         function setupSeparator() {
             const geometry = new THREE.PlaneGeometry(1, 1);
-            const material = new THREE.MeshBasicMaterial({color: 0x000000, side: THREE.DoubleSide});
+            const material = new THREE.MeshBasicMaterial({color: 0x000000, side: THREE.DoubleSide, transparent: true, opacity: 0.7});
             separator = new THREE.Mesh(geometry, material);
 
-            // Set initial rotation to 0 so the separator is flat
+
             separator.rotation.x = 0;
             separator.rotation.y = 0;
             separator.rotation.z = 0;
@@ -135,14 +135,12 @@
                                 let action = mixer.clipAction(animation);
                                 action.setLoop(THREE.LoopOnce);
 
-                                // Initialize the slider value for this animation as 0%
                                 params['animation' + i] = 0;
 
-                                // Add a slider for this animation to the GUI
                                 animationFolder.add(params, 'animation' + i, 0, 100).name('Animation ' + i).onChange(function (value) {
                                     action.time = action.getClip().duration * value / 100;
-                                    action.play();  // Play the animation to make the frame change take effect
-                                    action.paused = true;  // Pause the animation at the current frame
+                                    action.play();
+                                    action.paused = true;
                                 });
 
                                 return action;
