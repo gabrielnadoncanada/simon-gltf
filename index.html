@@ -39,16 +39,19 @@
         let params = {
             displayMeshes: true,
             displaySeparator: false,
+            shading: 'material',
+            collision: false
         };
 
         let scene, camera, renderer, orbitControls, lineGroup;
-        let group1, group2, mesh1, mesh2, line;
+        let group1, group2, mesh1, mesh2,mesh3, mesh4, line;
         let lastTime = window.performance.now();
         let stats;
         let mixer;
         const gui = new dat.GUI();
         let actions = [];
         let clock = new THREE.Clock();
+        let originalMaterials = [];
 
         let separator;
 
@@ -119,8 +122,18 @@
                     (gltf) => {
                         group1 = gltf.scene.children[0];
                         group2 = gltf.scene.children[1];
+
                         mesh1 = group1.children[0];
                         mesh2 = group2.children[0];
+                        mesh3 = group1.children[1];
+                        mesh4 = group2.children[1];
+
+                        originalMaterials[0] = mesh1.material;
+                        originalMaterials[1] = mesh2.material;
+                        originalMaterials[2] = mesh3.material;
+                        originalMaterials[3] = mesh4.material;
+
+
                         mesh1.geometry.computeBoundsTree();
                         mesh2.geometry.computeBoundsTree();
                         scene.add(group1, group2);
@@ -182,13 +195,47 @@
         function setupGUI() {
             gui.add(params, 'displayMeshes');
             gui.add(params, 'displaySeparator');
+            gui.add(params, 'collision');
+            const shadingOptions = ['material', 'wireframe', 'solid'];
+            const shadingController = gui.add(params, 'shading', shadingOptions);
+
+            shadingController.onChange((value) => {
+                let materials = [];
+                switch(value) {
+                    case 'material':
+                        mesh1.material = originalMaterials[0];
+                        mesh2.material = originalMaterials[1];
+                        mesh3.material = originalMaterials[2];
+                        mesh4.material = originalMaterials[3];
+                        break;
+                    case 'wireframe':
+                        materials = originalMaterials.map(() => new THREE.MeshBasicMaterial({ wireframe: true, color: 0xE91E63 }));
+                        mesh1.material = materials[0];
+                        mesh2.material = materials[1];
+                        mesh3.material = materials[2];
+                        mesh4.material = materials[3];
+                        break;
+                    case 'solid':
+                        materials = originalMaterials.map(originalMaterial => new THREE.MeshPhongMaterial({
+                            color: originalMaterial.color,
+                            emissive: originalMaterial.emissive,
+                            specular: originalMaterial.specular,
+                            shininess: originalMaterial.shininess
+                        }));
+                        mesh1.material = materials[0];
+                        mesh2.material = materials[1];
+                        mesh3.material = materials[2];
+                        mesh4.material = materials[3];
+                        break;
+                }
+            });
+
             const separatorFolder = gui.addFolder('Separator');
             separatorFolder.add(separator.position, 'y', -10, 10, 0.01);
             separatorFolder.add(separator.rotation, 'x', -Math.PI, Math.PI, 0.01);
             separatorFolder.add(separator.rotation, 'y', -Math.PI, Math.PI, 0.01);
             separatorFolder.add(separator.rotation, 'z', -Math.PI, Math.PI, 0.01);
             separatorFolder.open();
-
             gui.open();
         }
 
@@ -226,9 +273,7 @@
             mesh1.geometry.boundsTree.bvhcast(mesh2.geometry.boundsTree, matrix2to1, {
 
                 intersectsTriangles(triangle1, triangle2) {
-
                     if (triangle1.intersectsTriangle(triangle2, edge)) {
-
                         const {start, end} = edge;
                         results.push(
                                 start.x,
@@ -238,11 +283,8 @@
                                 end.y,
                                 end.z
                         );
-
                     }
-
                 }
-
             });
 
             if (results.length) {
@@ -265,7 +307,7 @@
                 lineGroup.position.copy(group1.position);
                 lineGroup.rotation.copy(group1.rotation);
                 lineGroup.scale.copy(group1.scale);
-                lineGroup.visible = true;
+                lineGroup.visible = params.collision;
 
             } else {
                 lineGroup.visible = false;
