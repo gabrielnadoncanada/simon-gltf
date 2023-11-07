@@ -39,7 +39,7 @@
         let params = {
             displayMeshes: true,
             displaySeparator: false,
-            shading: 'material',
+            shading: 'solid',
             collision: false
         };
 
@@ -67,6 +67,7 @@
             setupStats();
             setupGUI();
             handleWindowResize();
+
         }
 
         function setupSeparator() {
@@ -136,6 +137,8 @@
 
                         mesh1.geometry.computeBoundsTree();
                         mesh2.geometry.computeBoundsTree();
+
+                        switchMaterials(params.shading)
                         scene.add(group1, group2);
 
                         if (gltf.animations && gltf.animations.length) {
@@ -200,34 +203,7 @@
             const shadingController = gui.add(params, 'shading', shadingOptions);
 
             shadingController.onChange((value) => {
-                let materials = [];
-                switch(value) {
-                    case 'material':
-                        mesh1.material = originalMaterials[0];
-                        mesh2.material = originalMaterials[1];
-                        mesh3.material = originalMaterials[2];
-                        mesh4.material = originalMaterials[3];
-                        break;
-                    case 'wireframe':
-                        materials = originalMaterials.map(() => new THREE.MeshBasicMaterial({ wireframe: true, color: 0xE91E63 }));
-                        mesh1.material = materials[0];
-                        mesh2.material = materials[1];
-                        mesh3.material = materials[2];
-                        mesh4.material = materials[3];
-                        break;
-                    case 'solid':
-                        materials = originalMaterials.map(originalMaterial => new THREE.MeshPhongMaterial({
-                            color: originalMaterial.color,
-                            emissive: originalMaterial.emissive,
-                            specular: originalMaterial.specular,
-                            shininess: originalMaterial.shininess
-                        }));
-                        mesh1.material = materials[0];
-                        mesh2.material = materials[1];
-                        mesh3.material = materials[2];
-                        mesh4.material = materials[3];
-                        break;
-                }
+                switchMaterials(value);
             });
 
             const separatorFolder = gui.addFolder('Separator');
@@ -247,6 +223,37 @@
             }, false);
         }
 
+
+        function switchMaterials(value) {
+            let materials = [];
+            switch(value) {
+                case 'material':
+                    mesh1.material = originalMaterials[0];
+                    mesh2.material = originalMaterials[1];
+                    mesh3.material = originalMaterials[2];
+                    mesh4.material = originalMaterials[3];
+                    break;
+                case 'wireframe':
+                    materials = originalMaterials.map(() => new THREE.MeshBasicMaterial({ wireframe: true, color: 0xE91E63 }));
+                    mesh1.material = materials[0];
+                    mesh2.material = materials[1];
+                    mesh3.material = materials[2];
+                    mesh4.material = materials[3];
+                    break;
+                case 'solid':
+                    materials = originalMaterials.map(originalMaterial => new THREE.MeshPhongMaterial({
+                        color: originalMaterial.color,
+                        emissive: originalMaterial.emissive,
+                        specular: originalMaterial.specular,
+                        shininess: originalMaterial.shininess
+                    }));
+                    mesh1.material = materials[0];
+                    mesh2.material = materials[1];
+                    mesh3.material = materials[2];
+                    mesh4.material = materials[3];
+                    break;
+            }
+        }
         function render() {
 
             requestAnimationFrame(render);
